@@ -29,21 +29,18 @@ local function send_buffer_to_api()
 	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 	local payload = table.concat(lines, "\\n")
 
-	-- Sanitization of the payload, replacing control characters
 	payload = payload:gsub("\t", "\\t"):gsub("\n", "\\n"):gsub('"', '\\"')
 
 	local model = "codellama:7b"
 	local prompt = string.format('{"model": "%s", "prompt": "%s", "stream": false}', model, payload)
 
-	-- Debug: Print the JSON payload to check its structure
-	print("JSON Payload: ", prompt)
-
 	local function on_event(_, data, event)
-		if event == "stdout" or event == "stderr" then
-			for _, line in ipairs(data) do
-				if line ~= "" then
-					vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { line })
-				end
+		if event == "stdout" and not vim.tbl_isempty(data) then
+			local response = table.concat(data, "")
+			local json_data = vim.fn.json_decode(response)
+			if json_data and json_data.response then
+				local response_lines = vim.split(json_data.response, "\n")
+				vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, response_lines)
 			end
 		end
 	end
@@ -70,14 +67,14 @@ end
 
 vim.api.nvim_set_keymap(
 	"v",
-	"<leader>c",
+	"<leader>cd",
 	':lua require("totm").copy_selection_to_new_buffer()<cr>',
 	{ noremap = true, silent = true }
 )
 
 vim.api.nvim_set_keymap(
 	"n",
-	"<leader>a",
+	"<leader>ca",
 	':lua require("totm").send_buffer_to_api()<cr>',
 	{ noremap = true, silent = true }
 )
